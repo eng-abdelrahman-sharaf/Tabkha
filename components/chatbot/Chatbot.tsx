@@ -1,17 +1,23 @@
 "use client";
 import { cn } from "@/lib/styles";
-import { FormEvent, ReactNode, useState } from "react";
+import React, {
+    FormEvent,
+    ReactNode,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import ChatIcon from "@mui/icons-material/Chat";
-import SendIcon from "@mui/icons-material/Send";
-import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import RestaurantIcon from "@mui/icons-material/Restaurant";
-import ChefIcon from "./assets/ChefIcon";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { sendMessages } from "@/server/bot.actions";
-import { isBot } from "next/dist/server/web/spec-extension/user-agent";
+import { Message } from "./Message";
+import { ChatbotFloatingButton } from "./ChatbotFloatingButton";
+import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
+import { scrollDown, updateBottomReachedHandler } from "@/lib/scrolling";
 
 const ChatbotHeader = ({ closeChat }: { closeChat: () => void }) => (
     <div className="flex justify-between items-center mb-2">
@@ -20,66 +26,6 @@ const ChatbotHeader = ({ closeChat }: { closeChat: () => void }) => (
             onClick={closeChat}
             className="text-gray-500 hover:text-gray-700 h-fit rounded-full flex items-center justify-center cursor-pointer">
             <CloseIcon />
-        </button>
-    </div>
-);
-
-const Message = ({
-    message,
-    time,
-    isBot,
-}: {
-    message: string;
-    time: string;
-    isBot: boolean;
-}) => (
-    <div
-        className={cn("flex items-start gap-2.5", isBot || "flex-row-reverse")}>
-        {isBot ? (
-            <ChefIcon className="w-5 text-gray-700" />
-        ) : (
-            <AccountCircleIcon className="text-black !text-lg" />
-        )}
-        <div
-            className={cn(
-                "flex flex-col grow max-w-[180px] p-4 border-gray-200 bg-gray-100 rounded-xl",
-                isBot ? "rounded-ss-none" : "rounded-se-none"
-            )}>
-            <div
-                className={cn(
-                    "flex items-center space-x-2",
-                    isBot ? "justify-start" : "justify-end"
-                )}>
-                <span className="text-sm font-semibold text-indigo-700">
-                    {isBot ? "Chef Bot" : "You"}
-                </span>
-                <span className="text-sm font-normal text-indigo-500">
-                    {time}
-                </span>
-            </div>
-            <p className="text-sm font-normal text-gray-900">{message}</p>
-        </div>
-    </div>
-);
-
-const UserMessage = ({ message, time }: { message: string; time: string }) => (
-    <Message message={message} time={time} isBot={false} />
-);
-
-const BotMessage = ({ message, time }: { message: string; time: string }) => (
-    <Message message={message} time={time} isBot />
-);
-
-const ChatbotFloatingButton = ({
-    openChatbot,
-}: {
-    openChatbot: () => void;
-}) => (
-    <div className="fixed bottom-8 right-8 z-50">
-        <button
-            onClick={openChatbot}
-            className="flex items-center justify-center w-16 h-16 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none">
-            <ChatIcon className="-scale-x-100 !text-2xl" />
         </button>
     </div>
 );
@@ -100,34 +46,59 @@ export default function Chatbot() {
     } = useForm<z.infer<typeof MessageSchema>>({
         resolver: zodResolver(MessageSchema),
     });
-    const [chatHistory, setChatHistory] = useState([
+    const [botChatHistory, setBotChatHistory] = useState<
+        { message: ReactNode; time: string; isBot: boolean }[]
+    >([
         {
             message: "Hello! How can I assist you today?",
             time: "11:45 AM",
             isBot: true,
         },
     ]);
+    const [userChatHistory, setUserChatHistory] = useState<
+        { message: string; time: string; isBot: boolean }[]
+    >([]);
+    const [isBottomReached, setIsBottomReached] = useState(true);
+
+    const MessageContainerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        scrollDown(MessageContainerRef.current); // scroll to the bottom when a new message is added
+        if (MessageContainerRef.current) {
+            const container = MessageContainerRef.current;
+            container.addEventListener(
+                "scroll",
+                updateBottomReachedHandler(container, setIsBottomReached)
+            );
+            return () => {
+                container.removeEventListener(
+                    "scroll",
+                    updateBottomReachedHandler(container, setIsBottomReached)
+                );
+            };
+        }
+    }, [MessageContainerRef.current, botChatHistory, userChatHistory]);
 
     const onSubmit = async (data: z.infer<typeof MessageSchema>) => {
         const time = new Date().toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
         });
-        setChatHistory((prev) => [
-            ...prev,
+        const newUserHistory = [
+            ...userChatHistory,
             { message: data.message, time, isBot: false },
-        ]);
+        ];
+        setUserChatHistory(newUserHistory);
         const response = await sendMessages(
-            chatHistory.map((chat) => ({
-                role: chat.isBot ? "assistant" : "user",
-                content: chat.message,
+            newUserHistory.map((chat) => ({
+                role: "user",
+                parts: [{ text: chat.message }],
             }))
         );
-        setChatHistory((prev) => [
+        setBotChatHistory((prev) => [
             ...prev,
             { message: response || "Server is busy", time, isBot: true },
         ]);
-        // await new Promise((resolve) => setTimeout(resolve, 3000));
     };
     return (
         <>
@@ -149,28 +120,43 @@ export default function Chatbot() {
                     }}
                 />
 
+                {/* messages container */}
                 <div
+                    ref={MessageContainerRef}
                     className={cn(
                         "flex-1",
                         "overflow-y-auto scrollbar-indigo",
                         "border-t border-b space-y-2 border-gray-200", // separator lines
-                        "py-2 px-1 max-h-48" // limit height to fit within the chat window
+                        "py-2 px-1 max-h-48", // limit height to fit within the chat window
+                        "relative" // for the scroll button
                     )}>
-                    {chatHistory.map((chat, index) => (
-                        <Message
-                            key={index}
-                            message={chat.message}
-                            time={chat.time}
-                            isBot={chat.isBot}
-                        />
-                    ))}
+                    {Array.from({ length: botChatHistory.length }).map(
+                        (_, index) => (
+                            <React.Fragment key={index}>
+                                {botChatHistory[index] && (
+                                    <Message
+                                        message={botChatHistory[index].message}
+                                        time={botChatHistory[index].time}
+                                        isBot={botChatHistory[index].isBot}
+                                    />
+                                )}
+                                {userChatHistory[index] && (
+                                    <Message
+                                        message={userChatHistory[index].message}
+                                        time={userChatHistory[index].time}
+                                        isBot={userChatHistory[index].isBot}
+                                    />
+                                )}
+                            </React.Fragment>
+                        )
+                    )}
                     {isSubmitting && (
                         <Message message="thinking..." time=" " isBot />
                     )}
                 </div>
 
                 <form
-                    className="mt-2 flex gap-2 items-center"
+                    className="mt-2 flex gap-2 items-center relative"
                     onSubmit={(e) => {
                         e.preventDefault();
                         handleSubmit(onSubmit, (error) => {
@@ -183,6 +169,20 @@ export default function Chatbot() {
                             e.currentTarget.reset();
                         }
                     }}>
+                    <button
+                        type="button"
+                        className={cn(
+                            "absolute left-1/2 bottom-full -translate-y-4 -translate-x-1/2 h-fit w-fit z-50 transition-opacity",
+                            isBottomReached
+                                ? "opacity-0 pointer-events-none"
+                                : "opacity-100 pointer-events-auto"
+                        )}
+                        onClick={() => scrollDown(MessageContainerRef.current)}
+                        disabled={isBottomReached}
+                        aria-disabled={isBottomReached}
+                        aria-label="Scroll to bottom">
+                        <ArrowCircleDownRoundedIcon className="text-indigo-600 !text-2xl" />
+                    </button>
                     <textarea
                         {...register("message")}
                         name="message"
