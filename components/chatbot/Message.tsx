@@ -1,7 +1,5 @@
-import SendIcon from "@mui/icons-material/Send";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import { ReactNode } from "react";
-import ChefIcon from "../assets/ChefIcon";
+import { ChefIcon } from "../assets/ChefIcon";
 import { cn } from "@/lib/styles";
 import { MessageObjType } from "@/types/bot.types";
 
@@ -42,3 +40,5 @@ export const Message = ({ messageObj }: { messageObj: MessageObjType }) => {
         </div>
     );
 };
+
+Message.displayName = "Message";

@@ -1,21 +1,11 @@
 "use client";
 import { cn } from "@/lib/styles";
-import React, {
-    FormEvent,
-    ReactNode,
-    useEffect,
-    useRef,
-    useState,
-} from "react";
-import ChatIcon from "@mui/icons-material/Chat";
-import RestaurantIcon from "@mui/icons-material/Restaurant";
+import React, { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { sendMessages } from "@/server/bot.actions";
-import { Message } from "./Message";
 import { ChatbotFloatingButton } from "./ChatbotFloatingButton";
-import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import {
     BotChatHistoryType,
     MessageSchema,
@@ -35,7 +25,7 @@ export default function Chatbot() {
     const {
         register,
         handleSubmit,
-        formState: { errors, isValid, isSubmitting },
+        formState: { isSubmitting },
     } = form;
     const [botChatHistory, setBotChatHistory] = useState<BotChatHistoryType>([
         {
@@ -64,7 +54,7 @@ export default function Chatbot() {
                 );
             };
         }
-    }, [MessageContainerRef.current, userChatHistory]);
+    }, [userChatHistory]);
 
     const onSubmit = async (data: z.infer<typeof MessageSchema>) => {
         const newUserHistory = [

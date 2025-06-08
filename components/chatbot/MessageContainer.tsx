@@ -36,3 +36,5 @@ export const MessageContainer = forwardRef<
         )}
     </div>
 ));
+
+MessageContainer.displayName = "MessageContainer";
