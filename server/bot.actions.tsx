@@ -1,11 +1,9 @@
 "use server";
-import {  UserContextType } from "@/types/bot.types";
-import {  GoogleGenAI } from "@google/genai";
-
-
-const token = process.env["GITHUB_TOKEN"];
-const endpoint = "https://models.github.ai/inference";
-const modelName = "openai/gpt-4o";
+import { MealsResponseType, MealType } from "@/types/meal.types";
+import { errorToString } from "@/lib/errors";
+import { UserContextType } from "@/types/bot.types";
+import { GoogleGenAI } from "@google/genai";
+import { searchMealByName } from "./mealDB.actions";
 
 export async function sendMessages(conversationHistory: UserContextType) {
     const ai = new GoogleGenAI({
@@ -16,8 +14,7 @@ export async function sendMessages(conversationHistory: UserContextType) {
         responseMimeType: "text/plain",
     };
 
-    // const model = "gemma-3n-e4b-it";
-    const model = "gemini-2.0-flash-lite";
+    const model = process.env.MODEL_NAME;
 
     const lastMessages = conversationHistory
         .filter((item) => typeof item.parts[0].text === "string")
@@ -44,15 +41,8 @@ export async function sendMessages(conversationHistory: UserContextType) {
         contents,
     });
 
-    console.log(
-        contents.map(
-            (item: { parts: { text: string }[] }) => item.parts[0].text
-        )
-    );
-
     let text = "";
     for await (const chunk of response) {
-        console.log(chunk.text);
         if (chunk.text) {
             text += chunk.text;
         }
@@ -60,44 +50,79 @@ export async function sendMessages(conversationHistory: UserContextType) {
 
     let foodArray = [];
     try {
-        foodArray = JSON.parse(text.replaceAll("```", "").replace("json", ""));
+        foodArray = JSON.parse(
+            text.replaceAll("```", "").replace("json", "")
+        ).map((item: string) => item.toLowerCase());
     } catch (error) {
-        console.log(error);
+        throw new Error(
+            `Failed to parse food suggestions: ${errorToString(error)}`
+        );
     }
 
-    if (foodArray) {
+    console.log(foodArray);
+
+    let suggestedMeals: MealType[] = [];
+    try {
+        const seenMealIds = new Set<string>();
+        const maxMealsPerFoodItem = 2;
+        const maxMealsSuggestions = 8;
+        for (const foodName of foodArray) {
+            const mealsResponse: MealsResponseType = await searchMealByName(
+                foodName
+            );
+            if (!mealsResponse || !mealsResponse.meals) {
+                continue;
+            }
+            let picked_meals = 0;
+            for (const meal of mealsResponse.meals) {
+                if (!seenMealIds.has(meal.idMeal)) {
+                    suggestedMeals.push(meal);
+                    seenMealIds.add(meal.idMeal);
+                    picked_meals++;
+                    if (
+                        picked_meals >= maxMealsPerFoodItem ||
+                        suggestedMeals.length >= maxMealsSuggestions
+                    )
+                        break; // Limit to 5 meals per food item
+                }
+            }
+            if (suggestedMeals.length >= maxMealsSuggestions) break; // Limit to 6~11 meals meals maximum
+        }
+        foodArray = suggestedMeals.map((meal) => meal.strMeal);
+    } catch (error) {
+        throw new Error(
+            `Failed to generate food suggestions: ${errorToString(error)}`
+        );
+    }
+
+    if (suggestedMeals.length > 0) {
         return (
-            <div className="flex flex-col">
-                {foodArray.map((foodName: string, index: number) => {
-                    return <div key={index}>{foodName}</div>;
-                })}
+            <div className="flex flex-col gap-2">
+                <div className="font-bold text-gray-700 text-sm">
+                    Suggested Meals:
+                </div>
+                {suggestedMeals.map((meal: MealType, index: number) => (
+                    <div
+                        key={index}
+                        className="bg-white rounded-lg shadow p-2 flex items-center gap-3 max-w-xs">
+                        <img
+                            src={meal.strMealThumb}
+                            alt={meal.strMeal}
+                            className="w-16 h-16 object-cover rounded"
+                        />
+
+                        <div className="font-semibold text-gray-800 text-wrap text-xs truncate flex-1">
+                            {meal.strMeal}
+                        </div>
+                    </div>
+                ))}
             </div>
         );
     } else {
-        return "No food Suggested";
+        return (
+            <div className="text-sm text-gray-700">
+                Could not find any meal suggestions based on your input
+            </div>
+        );
     }
-
-    // const client = new OpenAI({
-    //     baseURL: "https://models.github.ai/inference",
-    //     apiKey: token,
-    // });
-
-    // console.log(token, endpoint, modelName);
-
-    // const response = await client.chat.completions.create({
-    //     messages: [
-    //         { role: "system", content: "You are a helpful assistant." },
-    //         ...conversationHistory,
-    //     ],
-    //     model: "openai/gpt-4o",
-    //     temperature: 1,
-    //     max_tokens: 2048,
-    //     top_p: 1,
-    // });
-
-    // // Get the assistant's reply
-    // const assistantReply = response.choices[0].message.content;
-    // console.log(assistantReply);
-
-    // return assistantReply;
 }
