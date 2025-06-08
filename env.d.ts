@@ -3,5 +3,6 @@ declare namespace NodeJS {
     interface ProcessEnv {
         GITHUB_TOKEN: string;
         GEMINI_API_KEY: string;
+        MODEL_NAME: string;
     }
 }
