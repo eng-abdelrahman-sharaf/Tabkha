@@ -47,6 +47,9 @@ importers:
       tailwind-merge:
         specifier: ^3.3.0
         version: 3.3.0
+      tailwind-variants:
+        specifier: ^1.0.0
+        version: 1.0.0(tailwindcss@4.1.8)
       zod:
         specifier: ^3.25.49
         version: 3.25.49
