@@ -82,7 +82,7 @@ export default function Chatbot() {
             setBotChatHistory((prev) => [
                 ...prev,
                 {
-                    message: "An error occurred. Please try again.",
+                    message: "An error occurred. Please try again Later",
                     isBot: true,
                 },
             ]);
