@@ -102,7 +102,11 @@ export async function sendMessages(conversationHistory: UserContextType) {
                     Suggested Meals:
                 </div>
                 {suggestedMeals.map((meal: MealType, index: number) => (
-                    <div
+                    <a
+                        href={
+                            meal.strSource ||
+                            "https://www.themealdb.com/meal/" + meal.idMeal
+                        }
                         key={index}
                         className="bg-white rounded-lg shadow p-2 flex items-center gap-3 max-w-xs">
                         <img
@@ -114,7 +118,7 @@ export async function sendMessages(conversationHistory: UserContextType) {
                         <div className="font-semibold text-gray-800 text-wrap text-xs truncate flex-1">
                             {meal.strMeal}
                         </div>
-                    </div>
+                    </a>
                 ))}
             </div>
         );
