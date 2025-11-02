@@ -13,7 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tabkha Bot",
+    title: "Tabkha Bot",
+    icons:{icon:"/logo.ico"},
   description: "AI that gets you the meal you want.",
 };
 
